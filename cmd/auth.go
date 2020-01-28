@@ -79,10 +79,10 @@ func genACRToken(accessToken string, refreshToken string, acrRepo string, tenant
 	return acrToken
 }
 
-func genDockerAuth(acrToken string) string {
+func genDockerAuth(acrToken ACRToken) string {
 	authConfig := types.AuthConfig{
 		Username: "00000000-0000-0000-0000-000000000000",
-		Password: acrToken,
+		Password: acrToken.Token,
 	}
 	encodedJSON, err := json.Marshal(authConfig)
 	if err != nil {
