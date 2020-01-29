@@ -5,18 +5,18 @@ SRC=$(shell find . -name '*.go')
 
 .PHONY: all clean release install
 
-all: acrpush-linux-amd64 acrpush-darwin-amd64
+all: acr-sync-linux-amd64 acr-sync-darwin-amd64
 
 clean:
-	rm -f acrpush acrpush-linux-amd64 acrpush-darwin-amd64
+	rm -f acr-sync acr-sync-linux-amd64 acr-push-darwin-amd64
 
-k8vault-linux-amd64: $(SRC)
+acr-sync-linux-amd64: $(SRC)
 	GOOS=linux GOARCH=amd64 go build $(BUILD_FLAGS) -o $@ .
 
-k8vault-darwin-amd64: $(SRC)
+acr-sync-darwin-amd64: $(SRC)
 	GOOS=darwin GOARCH=amd64 go build $(BUILD_FLAGS) -o $@ .
 
 install:
-	rm -f acrpush
+	rm -f acrsync
 	go build $(BUILD_FLAGS) .
-	mv acrpush ~/bin/
+	mv acr-sync ~/bin/
