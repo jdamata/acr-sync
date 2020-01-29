@@ -1,10 +1,8 @@
 package cmd
 
 import (
-	"fmt"
-
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
+	"os"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -30,19 +28,35 @@ func logging() {
 // Execute executes the root command.
 func Execute(version string) error {
 	rootCmd.Version = version
-	rootCmd.Flags().BoolP("all", "a", false, "Push all images and tags")
-	viper.BindPFlag("all", rootCmd.Flags().Lookup("all"))
+	rootCmd.Flags().BoolP("push", "p", false, "Push all images and tags")
+	viper.BindPFlag("push", rootCmd.Flags().Lookup("push"))
 	return rootCmd.Execute()
 }
 
 func main(cmd *cobra.Command, args []string) {
-	//accessToken, refreshToken, tenantID := parseAzureConfig()
-	//acrToken := genACRToken(accessToken, refreshToken, args[0], tenantID)
-	//authStr := genDockerAuth(acrToken)
+	// Prepare authentication tokens
+	accessToken, refreshToken, tenantID := parseAzureConfig()
+	srcAcrRefreshToken := genACRRefreshToken(accessToken, refreshToken, args[0], tenantID)
+	// Grab list of repos, and tags
+	repoList := repoList(args[0], srcAcrRefreshToken)
+	images := imageList(args[0], srcAcrRefreshToken, repoList)
+	log.Info(images)
+	os.Exit(0)
+	// Create context and docker client
+	ctx := context.Background()
 	docker, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation())
 	if err != nil {
-		log.Fatal(err, "Can't start docker client")
+		log.Fatal(err, "Failed to create docker client. Is docker running?")
 	}
-	ctx := context.Background()
-	imageList(ctx, docker)
+	if viper.GetBool("push") {
+		// Pull all images
+		srcDockerAuth := genDockerAuth(srcAcrRefreshToken)
+		imagePull(ctx, args[0], docker, images, srcDockerAuth)
+		// Push all images
+		// destAcrRefreshToken := genACRRefreshToken(accessToken, refreshToken, args[1], tenantID)
+		// destDockerAuth := genDockerAuth(destAcrRefreshToken)
+		// imagePush(ctx, docker, images, destDockerAuth)
+	} else {
+		log.Info("Not pulling and pushing images. Specify --push to kick off the sync")
+	}
 }

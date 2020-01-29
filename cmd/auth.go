@@ -32,10 +32,16 @@ type AzureConfig []struct {
 	Oid              string `json:"oid,omitempty"`
 }
 
-// ACRToken retrieved from
-type ACRToken struct {
+// ACRRefreshToken retrieved from /oauth2/exchange
+type ACRRefreshToken struct {
 	Token string `json:"refresh_token"`
 }
+
+// ACRAccessToken retrieved from /oauth2/token
+type ACRAccessToken struct {
+	Token string `json:"access_token"`
+}
+
 
 func parseAzureConfig() (string, string, string) {
 	var accessToken string
@@ -62,27 +68,54 @@ func parseAzureConfig() (string, string, string) {
 	return accessToken, refreshToken, tenantID
 }
 
-func genACRToken(accessToken string, refreshToken string, acrRepo string, tenantID string) ACRToken {
-	var acrToken ACRToken
+func genACRRefreshToken(accessToken string, refreshToken string, acrRepo string, tenantID string) string {
+	var ACRRefreshToken ACRRefreshToken
 	data := url.Values{}
 	data.Set("grant_type", "access_token_refresh_token")
 	data.Set("access_token", accessToken)
 	data.Set("refresh_token", refreshToken)
 	data.Set("service", acrRepo)
 	data.Set("tenant", tenantID)
-	resp, err := http.PostForm("https://"+acrRepo+"/oauth2/exchange", data)
+	resp, err := http.PostForm("https://" + acrRepo + "/oauth2/exchange", data)
 	if err != nil {
 		log.Fatal(err, "Authenticate via the cli with az login first")
+	} else if resp.StatusCode == 401 {
+		log.Fatal("Unable to authenticate to /oauth2/exchange. Authenticate via the cli with az login first")
 	}
-	byteValue, _ := ioutil.ReadAll(resp.Body)
-	json.Unmarshal(byteValue, &acrToken)
-	return acrToken
+	byteValue, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+	json.Unmarshal(byteValue, &ACRRefreshToken)
+	log.Info("Generated a /oauth2/exchange refresh_token successfully")
+	return ACRRefreshToken.Token
 }
 
-func genDockerAuth(acrToken ACRToken) string {
+func genACRAccessToken(ACRRefreshToken string, acrRepo string, scope string) string {
+	var ACRAccessToken ACRAccessToken
+	data := url.Values{}
+	data.Set("grant_type", "refresh_token")
+	data.Set("refresh_token", ACRRefreshToken)
+	data.Set("service", acrRepo)
+	data.Set("scope", scope)
+	resp, err := http.PostForm("https://" + acrRepo + "/oauth2/token", data)
+	if err != nil {
+		log.Fatal(err, "Authenticate via the cli with az login first")
+	} else if resp.StatusCode == 401 {
+		log.Fatal("Unable to authenticate to /oauth2/token")
+	}
+	byteValue, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+	json.Unmarshal(byteValue, &ACRAccessToken)
+	return ACRAccessToken.Token
+}
+
+func genDockerAuth(AcrRefreshToken string) string {
 	authConfig := types.AuthConfig{
 		Username: "00000000-0000-0000-0000-000000000000",
-		Password: acrToken.Token,
+		Password: AcrRefreshToken,
 	}
 	encodedJSON, err := json.Marshal(authConfig)
 	if err != nil {
