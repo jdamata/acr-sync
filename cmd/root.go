@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"github.com/docker/docker/client"
-	"os"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -34,29 +33,31 @@ func Execute(version string) error {
 }
 
 func main(cmd *cobra.Command, args []string) {
+	if !viper.GetBool("push") {
+		log.Info("Not pulling and pushing images. Specify --push to kick off the sync")
+	}
 	// Prepare authentication tokens
 	accessToken, refreshToken, tenantID := parseAzureConfig()
 	srcAcrRefreshToken := genACRRefreshToken(accessToken, refreshToken, args[0], tenantID)
-	// Grab list of repos, and tags
+	// Grab list of repos
 	repoList := repoList(args[0], srcAcrRefreshToken)
-	images := imageList(args[0], srcAcrRefreshToken, repoList)
-	log.Info(images)
-	os.Exit(0)
 	// Create context and docker client
 	ctx := context.Background()
 	docker, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation())
 	if err != nil {
 		log.Fatal(err, "Failed to create docker client. Is docker running?")
 	}
-	if viper.GetBool("push") {
-		// Pull all images
-		srcDockerAuth := genDockerAuth(srcAcrRefreshToken)
-		imagePull(ctx, args[0], docker, images, srcDockerAuth)
-		// Push all images
-		// destAcrRefreshToken := genACRRefreshToken(accessToken, refreshToken, args[1], tenantID)
-		// destDockerAuth := genDockerAuth(destAcrRefreshToken)
-		// imagePush(ctx, docker, images, destDockerAuth)
-	} else {
-		log.Info("Not pulling and pushing images. Specify --push to kick off the sync")
+	for _, repo := range repoList {
+		// Grab tags for repo
+		tags := repoTags(args[0], srcAcrRefreshToken, repo)
+		if viper.GetBool("push") {
+			// Pull all images
+			srcDockerAuth := genDockerAuth(srcAcrRefreshToken)
+			imagePull(ctx, args[0], docker, tags, srcDockerAuth)
+			// Push all images
+			destAcrRefreshToken := genACRRefreshToken(accessToken, refreshToken, args[1], tenantID)
+			destDockerAuth := genDockerAuth(destAcrRefreshToken)
+			imagePush(ctx, args[0], args[1], docker, tags, destDockerAuth)
+		}
 	}
 }
