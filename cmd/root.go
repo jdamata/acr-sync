@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"golang.org/x/net/context"
+	"github.com/docker/docker/api/types/filters"
 )
 
 var (
@@ -27,14 +28,16 @@ func logging() {
 // Execute executes the root command.
 func Execute(version string) error {
 	rootCmd.Version = version
-	rootCmd.Flags().BoolP("push", "p", false, "Push all images and tags")
-	viper.BindPFlag("push", rootCmd.Flags().Lookup("push"))
+	rootCmd.Flags().BoolP("sync", "s", false, "Sync all images and tags")
+	rootCmd.Flags().BoolP("prune", "p", false, "Prune local docker images after pushing")
+	viper.BindPFlag("sync", rootCmd.Flags().Lookup("sync"))
+	viper.BindPFlag("prune", rootCmd.Flags().Lookup("prune"))
 	return rootCmd.Execute()
 }
 
 func main(cmd *cobra.Command, args []string) {
-	if !viper.GetBool("push") {
-		log.Info("Not pulling and pushing images. Specify --push to kick off the sync")
+	if !viper.GetBool("sync") {
+		log.Info("Not pulling and pushing images. Specify --sync to kick off the sync")
 	}
 	// Prepare authentication tokens
 	accessToken, refreshToken, tenantID := parseAzureConfig()
@@ -50,7 +53,7 @@ func main(cmd *cobra.Command, args []string) {
 	for _, repo := range repoList {
 		// Grab tags for repo
 		tags := repoTags(args[0], srcAcrRefreshToken, repo)
-		if viper.GetBool("push") {
+		if viper.GetBool("sync") {
 			// Pull all images
 			srcDockerAuth := genDockerAuth(srcAcrRefreshToken)
 			imagePull(ctx, args[0], docker, tags, srcDockerAuth)
@@ -59,5 +62,8 @@ func main(cmd *cobra.Command, args []string) {
 			destDockerAuth := genDockerAuth(destAcrRefreshToken)
 			imagePush(ctx, args[0], args[1], docker, tags, destDockerAuth)
 		}
+	}
+	if viper.GetBool("prune") {
+		docker.ImagesPrune(ctx, filters.Args{})
 	}
 }
