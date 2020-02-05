@@ -87,7 +87,7 @@ func genACRRefreshToken(accessToken string, refreshToken string, acrRepo string,
 		log.Fatal(err)
 	}
 	json.Unmarshal(byteValue, &ACRRefreshToken)
-	log.Info("Generated a /oauth2/exchange refresh_token successfully")
+	log.Infof("Generated a /oauth2/exchange refresh_token successfully for acrrepo: %v", acrRepo)
 	return ACRRefreshToken.Token
 }
 

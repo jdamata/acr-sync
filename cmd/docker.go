@@ -67,7 +67,12 @@ func repoTags(acrRepo string, acrRefreshToken string, repo string) Image {
 		log.Fatal(err, "Failed to read registry list")
 	}
 	json.Unmarshal(byteValue, &image)
-	log.Infof("Found image: %v with tags: %v", image.Name, image.Tags)
+	if len(image.Tags) > 0 {
+		log.Debugf("Found image: %v with tags: %v in repo: %v", image.Name, image.Tags, acrRepo)
+	} else {
+		log.Debugf("Did not find image: %v in repo: %v", repo, acrRepo)
+	}
+	
 	return image
 }
 
